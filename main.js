@@ -28,6 +28,8 @@ adapter.on('unload', function (callback) {
 
 
 let reStartTime = new RegExp(/^(\d)\-startTime$/);
+let reMode = new RegExp(/^(\d)\-mode$/);
+let reBoundaryId = new RegExp(/^(\d)\-boundaryId$/);
 let reTimeValidator = new RegExp(/^(0[0-9]|1[0-9]|2[0-3]):([0-5][0-9])$/);
 
 // is called if a subscribed state changes
@@ -275,13 +277,16 @@ adapter.on('stateChange', function (id, state) {
         else if (channel === 'schedule') {
             adapter.log.debug('objectChange: ' + id + ' ' + JSON.stringify(state) );
             let match;
+            let day;
             // now is only startTime editable
             //startinc checks of startTime valid input - begin with state name
             if (((match = String(command).match(reStartTime)) !== null) && (match.length === 2))  {
-                let day = parseInt(match[0]);
+                day = parseInt(match[0]);
                 //state name is valid, will check a day of week
                 if ((! Number.isInteger(day)) || ( day < 0 ) || ( day > 6)) {
                     adapter.log.warn('Unknown day of week for startTime: ' + JSON.stringify(command));
+                    //update to value from robot
+                    updateRobot(allRobots[robotName]);
                     return;
                 }
                 //checking the state value to be comply with HH:MM
@@ -376,6 +381,88 @@ adapter.on('stateChange', function (id, state) {
                         }
                     }
                 });
+            }
+            else if (((match = String(command).match(reMode)) !== null) && (match.length === 2)) {
+                day = parseInt(match[0]);
+                //state name is valid, will check a day of week
+                if ((! Number.isInteger(day)) || ( day < 0 ) || ( day > 6)) {
+                    adapter.log.warn('Unknown day of week for startTime: ' + JSON.stringify(command));
+                    return;
+                }
+                let mode = parseInt(state.val);
+                //checking the mode value to be comply with 0 or 1
+                if ((! Number.isInteger(mode)) || ( mode < 1 ) || ( mode > 2)) {
+                    adapter.log.warn('Not valid format of mode for ' + JSON.stringify(command) + ' = ' + JSON.stringify(state.val));
+                    //update to value from robot
+                    updateRobot(allRobots[robotName]);
+                    return;
+                }
+                adapter.getState(robotName + '.' + channel + '.' + day + '-startTime', function (err, startTime) {
+                    if (error ) {
+                        adapter.log.warn('cannot get mode for day ' + day + 'for ' + robotName + '! Error: ' + JSON.stringify(error) + ', mode = ' + JSON.stringify(mode));
+                        updateRobot(allRobots[robotName]);
+                        return;
+                    }
+                    //we will only save the valued and will not update schedule
+                    if (startTime.val === '') {
+                        adapter.setState(id, state.val, true);
+                    }
+                    //now we are ready to get current schedule
+                    allRobots[robotName].getSchedule(true, function (error, schedule) {
+                        if (error || !schedule) {
+                            adapter.log.warn('could not update robot ' + robot.name);
+                            adapter.setState(robot.name + '.status.reachable', true, false);
+                            return;
+                        }
+                        //we have to send to the robot the whole existing schedule with our changes
+                        //that's why we need to get current one
+                        adapter.log.debug('get schedule: ' + JSON.stringify(schedule));
+                        //status of schedule is returned from, but has not be passed to
+                        if (schedule.hasOwnProperty('enabled')) delete schedule['enabled'];
+                        adapter.log.debug('update schedule: ' + JSON.stringify(schedule));
+                        // to be careful, if we have right answer
+                        if (schedule.hasOwnProperty('events')) {
+                            //trying to find a current day in existing schedule
+                            let isDay = schedule.events.findIndex(function (element) {
+                                return (element.hasOwnProperty('day') && (parseInt(element.day) === day));
+                            });
+                            //this day exists in schedule
+                            if (isDay >= 0) {
+                                //replace with new mode
+                                schedule.events[isDay].mode = mode;
+                                setSchedule(robotName, id, state, schedule);
+                            }
+                            //day is not exists in schedule
+                            else {
+                                let newDay = { 'day': day, 'startTime': startTime, 'mode': mode};
+                                if (allRobots[robotName].availableServices.schedule === 'basic-2') {
+                                    adapter.getState(robotName + '.' + channel + '.' + day + '-boundaryId', function (err, mode) {
+                                        if (error ) {
+                                            adapter.log.warn('cannot get boundaryId for day ' + day + 'for ' + robotName + '! Error: ' + JSON.stringify(error) + ', boundary = ' + JSON.stringify(boundary));
+                                            updateRobot(allRobots[robotName]);
+                                            return;
+                                        }
+                                        // we will not check format of the boundaryId mode there, as it has to be checked before, when it changed
+                                        adapter.log.debug('boundary: ' + JSON.stringify(boundary) + ' for day ' + JSON.stringify(day));
+                                        newDay['boundaryId'] = boundary.val;
+                                        // add new day
+                                        schedule.events.push(newDay);
+                                        // process new schedule
+                                        setSchedule(robotName, id, state, schedule);
+                                    });
+                                }
+                                else {
+                                    // add new day
+                                    schedule.events.push(newDay);
+                                    // process new schedule
+                                    setSchedule(robotName, id, state, schedule);
+                                }
+                            }
+                        }
+                    });
+                });
+            }
+            else if (((match = String(command).match(reBoundaryId)) !== null) && (match.length === 2))  {
             }
         }
     }
@@ -685,6 +772,7 @@ function prepareRobotsStructure(robots, devices, callback) {
                                     type: 'number',
                                     read: true,
                                     write: false,
+                                    def: 1,
                                     role: 'value'
                                 }
                             };
