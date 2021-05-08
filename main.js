@@ -432,32 +432,8 @@ adapter.on('stateChange', function (id, state) {
                                 schedule.events[isDay].mode = mode;
                                 setSchedule(robotName, id, state, schedule);
                             }
-                            //day is not exists in schedule
-                            else {
-                                let newDay = { 'day': day, 'startTime': startTime, 'mode': mode};
-                                if (allRobots[robotName].availableServices.schedule === 'basic-2') {
-                                    adapter.getState(robotName + '.' + channel + '.' + day + '-boundaryId', function (err, mode) {
-                                        if (error ) {
-                                            adapter.log.warn('cannot get boundaryId for day ' + day + 'for ' + robotName + '! Error: ' + JSON.stringify(error) + ', boundary = ' + JSON.stringify(boundary));
-                                            updateRobot(allRobots[robotName]);
-                                            return;
-                                        }
-                                        // we will not check format of the boundaryId mode there, as it has to be checked before, when it changed
-                                        adapter.log.debug('boundary: ' + JSON.stringify(boundary) + ' for day ' + JSON.stringify(day));
-                                        newDay['boundaryId'] = boundary.val;
-                                        // add new day
-                                        schedule.events.push(newDay);
-                                        // process new schedule
-                                        setSchedule(robotName, id, state, schedule);
-                                    });
-                                }
-                                else {
-                                    // add new day
-                                    schedule.events.push(newDay);
-                                    // process new schedule
-                                    setSchedule(robotName, id, state, schedule);
-                                }
-                            }
+                            //day can't be non present in schedule, as can't have empty startTime. 
+                            //if startTime is not empty - it have to be in schedule, or peocessed by on.change of startTime property
                         }
                     });
                 });
