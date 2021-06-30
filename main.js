@@ -267,6 +267,31 @@ adapter.on('stateChange', function (id, state) {
                     allRobots[robotName].noGoLines = state.val;
                     adapter.setState(id, state.val, true);
                     break;
+                case 'dismissAlert':
+                        updateRobot(allRobots[robotName], function (error) {
+                            if (error) {
+                                return;
+                            }
+                            if (!allRobots[robotName].alert || allRobots[robotName].alert.length === 0) {
+                                adapter.log.warn('Nothing to dismiss for' + robotName);
+                                adapter.setState(id, false, true);
+                                return;
+                            }                            
+                            //dismiss Alert
+                            allRobots[robotName].dismissCurrentAlert (function (error, result) {
+                                if (error || result !== 'ok') {
+                                    adapter.log.warn('cannot dismiss alert for ' + robotName);
+                                    adapter.setState(id, false, true);
+                                    return;
+                                }
+                                adapter.setState(id, true, true);
+                                setTimeout(function () {
+                                    updateRobot(allRobots[robotName]);
+                                }, 1000);
+                            });
+                        });
+    
+                        break;                    
                 default:
                     adapter.log.warn('unknown command: ' + command);
                     return;
@@ -574,6 +599,7 @@ const statusROStringText = { common: { type: 'string', read: true, write: false,
 const statusRONumberValue = { common: { type: 'number', read: true, write: false, role: 'value' } };
 const statusROBooleanIndicator = { common: { type: 'boolean', read: true, write: false, role: 'indicator' } }
 const commandRWBooleanSwitch = { common: { type: 'boolean', read: true, write: true, def: false, role: 'switch' } };
+const commandOWButton = { common: { type: 'boolean', read: false, write: true, role: 'button' } };
 
 function prepareRobotsStructure(robots, devices, callback) {
     if (!robots.length) return (typeof callback === 'function') ? callback(null, devices) : null;
@@ -659,6 +685,7 @@ function prepareRobotsStructure(robots, devices, callback) {
                             'resume': commandRWBooleanSwitch,
                             'stop': commandRWBooleanSwitch,
                             'goToBase': commandRWBooleanSwitch,
+                            'dismissAlert': commandOWButton,
                             'noGoLines': commandRWBooleanSwitch,
                         }
                     }
