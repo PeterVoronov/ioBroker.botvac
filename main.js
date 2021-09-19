@@ -137,7 +137,7 @@ adapter.on('stateChange', function (id, state) {
                         adapter.log.warn('use resume or stop state if you want to resume or stop cleaning ' + robotName);
                         return;
                     }
-                updateRobot(allRobots[robotName], function (error) {
+                    updateRobot(allRobots[robotName], function (error) {
                         if (error) {
                             return;
                         }
@@ -536,8 +536,8 @@ function updateRobot(robot, callback) {
         if (robot.canStop) {
             adapter.setState(robot.name + '.commands.stop', false, true);
         }
-        adapter.setState(robot.name + '.status.canPause', robot.canPaus, true);
-        if (robot.canPaus) {
+        adapter.setState(robot.name + '.status.canPause', robot.canPause, true);
+        if (robot.canPause) {
             adapter.setState(robot.name + '.commands.pause', false, true);
         }
         adapter.setState(robot.name + '.status.canResume', robot.canResume, true);
